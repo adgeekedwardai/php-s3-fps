@@ -1,0 +1,24 @@
+{
+    "name": "cyntelli/php-s3-fps",
+    "description": "php s3 fps",
+    "authors": [
+        {
+            "name": "edward.ai",
+            "email": "edward.ai@adgeek.com.tw"
+        }
+    ],
+    "require": {
+        "php": "^7.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cyntelli\\Fps\\": "src"
+        }
+    },
+    "repositories": [
+         { 
+           "type": "vcs", 
+           "url": "https://gitlab.cyntellitech.org/backend/php-s3-fps" 
+        }
+    ]
+}
