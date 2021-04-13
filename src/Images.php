@@ -2,6 +2,7 @@
 
 namespace Cyntelli\Fps;
 
+use CURLFILE;
 use Exception;
 
 /**
@@ -14,67 +15,95 @@ use Exception;
 class Images
 {
     /**
+     * @var string $s3repo
+     */
+    public $s3repo = 'https://s3fps.adgeek.net/';
+
+    /**
+     * @var string $bucketPath
+     */
+    public $bucketPath = "/upload/s3fpstest/my_custom";
+
+    /**
+     * @var string $targets3Path
+     */
+    private $targets3Path;
+
+    /**
+     * construct
+     */
+    public function  __construct()
+    {
+        $this->targets3Path = sprintf('%s%s', $this->s3repo, $this->bucketPath);
+    }
+
+
+    /**
      * upload Images
      * 
-     * @param array $data
+     * @param string $filePath
      * 
      * @return array
      */
-    public function upload(string $data): array
+    public function upload(string $fromPath): array
     {
         $result = [];
-
-        /** validate files data */
-        $data = json_decode($data, true);
-
-        if (!array_key_exists('bucket_path', $data)) {
-            throw new Exception("Bucket path is required!", 400);
-        }
-
-        $targets3Path = 'https://s3fps.adgeek.net/'.$data['bucket_path'];
  
         /** init response data */
         $result['_data'] = [];
-        $result['_msg'] = [];
 
-        $files = $data['files'];
-        foreach ($files as $rowFile) {
-            /** prepare post data */
-            $postData = [
-                'file_base64' => $rowFile['encode_data']
-            ];
+        /** tmp folder */
+        $tmpPath = __DIR__.'/../runtime/';
 
-            $curl = curl_init();
+        /** create tmp path */
+        if (!is_dir($tmpPath)) {
+            mkdir($tmpPath);
+        }
 
-            curl_setopt_array($curl, array(
-                CURLOPT_URL => $targets3Path,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 0,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => 'POST',
-                CURLOPT_POSTFIELDS => $postData,
-            ));
+        /** get destination */
+        $destinationPath = sprintf('%s%s', $tmpPath, basename($fromPath));
 
-            $response = curl_exec($curl);
+        file_put_contents($destinationPath, file_get_contents($fromPath));
 
-            $response = json_decode($response, true);
+        /** prepare post data */
+        $postData = [
+            'file' => new CURLFILE($destinationPath)
+        ];
 
-            if ($response['code'] === 200) {
-                $rowData = $response['data'];
+        $curl = curl_init();
 
-                foreach ($rowData as $rowFileName => $rowFilePath) {
-                    array_push($result['_data'], [
-                        'file_name' => $rowFileName,
-                        'file_path' => $rowFilePath
-                    ]);
-                }
-            } else {
-                array_push($result['_msg'], $response);
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $this->targets3Path,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => $postData,
+        ));
+
+        $response = curl_exec($curl);
+
+        $response = json_decode($response, true);
+
+        if ($response['code'] != 200) {
+            throw new Exception($response['msg'], $response['code']);
+        }
+
+        if ($response['code'] === 200) {
+            $rowData = $response['data'];
+
+            foreach ($rowData as $rowFileName => $rowFilePath) {
+                array_push($result['_data'], [
+                    'logo_image_path' => $rowFilePath
+                ]);
             }
         }
+
+        /** delete uploaded data */
+        unlink($destinationPath);
 
         return $result;
     }
